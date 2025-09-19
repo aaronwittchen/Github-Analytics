@@ -2,90 +2,99 @@ import {
   Controller,
   Get,
   Param,
+  Query,
   HttpException,
   HttpStatus,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
-  ApiParam,
   ApiResponse,
-  ApiNotFoundResponse,
   ApiBadRequestResponse,
   ApiTooManyRequestsResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
-import { GitHubService, UserStats } from './github.service.js';
+import { GitHubService } from './github.service.js';
 import { UserSummaryDto } from './dto/user-summary.dto.js';
+import { RepositoryDto } from './dto/repository.dto.js';
+import { UsernameParamDto } from './dto/username-param.dto.js';
 
-@ApiTags('users')
-@Controller('api/user')
+@Controller('v1')
+@ApiTags('GitHub')
 export class GitHubController {
   constructor(private readonly githubService: GitHubService) {}
 
-  @Get(':username/summary')
+  @Get('users/:username/summary')
+  @UsePipes(new ValidationPipe({ transform: true }))
   @ApiOperation({
     summary: 'Get GitHub user summary',
     description:
       'Retrieves comprehensive GitHub user information including profile data and top 5 repositories sorted by stars',
-  })
-  @ApiParam({
-    name: 'username',
-    description: 'GitHub username',
-    example: 'octocat',
-    type: String,
   })
   @ApiResponse({
     status: 200,
     description: 'User summary retrieved successfully',
     type: UserSummaryDto,
   })
-  @ApiBadRequestResponse({
-    description: 'Invalid username format or missing username',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 400 },
-        message: { type: 'string', example: 'Invalid username format' },
-      },
-    },
-  })
-  @ApiNotFoundResponse({
-    description: 'GitHub user not found',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 404 },
-        message: { type: 'string', example: "User 'nonexistent' not found" },
-      },
-    },
-  })
-  @ApiTooManyRequestsResponse({
-    description: 'GitHub API rate limit exceeded',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 429 },
-        message: { type: 'string', example: 'GitHub API rate limit exceeded' },
-      },
-    },
-  })
+  @ApiBadRequestResponse({ description: 'Invalid username format' })
+  @ApiNotFoundResponse({ description: 'GitHub user not found' })
+  @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
   async getUserSummary(
-    @Param('username') username: string,
-  ): Promise<UserStats> {
-    // Basic validation
-    if (!username || username.trim().length === 0) {
-      throw new HttpException('Username is required', HttpStatus.BAD_REQUEST);
+    @Param() params: UsernameParamDto,
+  ): Promise<UserSummaryDto> {
+    try {
+      return await this.githubService.getUserStats(params.username);
+    } catch (error: unknown) {
+      this.handleGitHubError(error, params.username);
     }
+  }
 
-    // GitHub usernames can only contain alphanumeric characters and hyphens
-    const validUsernameRegex = /^[a-zA-Z0-9-]+$/;
-    if (!validUsernameRegex.test(username)) {
+  @Get('repositories/random')
+  @ApiOperation({
+    summary: 'Get a random GitHub repository',
+    description: 'Retrieves a random repository from GitHub within the specified star range',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Random repository retrieved successfully',
+    type: RepositoryDto,
+  })
+  @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
+  async getRandomRepository(
+    @Query('min_stars') minStars?: number,
+    @Query('max_stars') maxStars?: number,
+  ): Promise<RepositoryDto> {
+    try {
+      return await this.githubService.getRandomRepository({
+        minStars: minStars ? Number(minStars) : undefined,
+        maxStars: maxStars ? Number(maxStars) : undefined,
+      });
+    } catch (error: unknown) {
+      this.handleGitHubError(error);
+    }
+  }
+
+  private handleGitHubError(error: unknown, username?: string): never {
+    const status = (error as { status?: number }).status;
+    const message =
+      error instanceof Error ? error.message : 'An unknown error occurred';
+
+    if (status === 404 && username) {
       throw new HttpException(
-        'Invalid username format',
-        HttpStatus.BAD_REQUEST,
+        `User '${username}' not found`,
+        HttpStatus.NOT_FOUND,
+      );
+    } else if (status === 403) {
+      throw new HttpException(
+        'GitHub API rate limit exceeded. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-
-    return await this.githubService.getUserStats(username);
+    throw new HttpException(
+      message,
+      typeof status === 'number' ? status : HttpStatus.INTERNAL_SERVER_ERROR,
+    );
   }
 }
