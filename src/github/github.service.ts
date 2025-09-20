@@ -86,6 +86,24 @@ export class GitHubService {
     }
   }
 
+  async getRepositoryReadme(owner: string, repo: string): Promise<any> {
+    try {
+      const { data } = await this.octokit.rest.repos.getReadme({
+        owner: this.sanitizeUsername(owner),
+        repo: this.sanitizeRepoName(repo),
+        mediaType: {
+          format: 'raw+json',
+        },
+      });
+      return data;
+    } catch (error) {
+      if (error.status === 404) {
+        throw new HttpException('README not found', HttpStatus.NOT_FOUND);
+      }
+      throw error;
+    }
+  }
+
   async getRandomRepository(options?: {
     minStars?: number;
     maxStars?: number;
@@ -278,7 +296,13 @@ export class GitHubService {
   }
 
   private sanitizeUsername(username: string): string {
-    return username.trim().replace(/[^a-zA-Z0-9-]/g, '');
+    // Remove any leading/trailing whitespace and @ symbols
+    return username.trim().replace(/^@/, '');
+  }
+
+  private sanitizeRepoName(repo: string): string {
+    // Remove any leading/trailing whitespace and .git suffix
+    return repo.trim().replace(/\.git$/, '');
   }
 
   private handleGitHubError(error: unknown, context?: string): never {

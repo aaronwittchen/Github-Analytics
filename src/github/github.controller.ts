@@ -17,9 +17,10 @@ import {
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { GitHubService } from './github.service.js';
-import { UserSummaryDto } from './dto/user-summary.dto.js';
 import { RepositoryDto } from './dto/repository.dto.js';
+import { UserSummaryDto } from './dto/user-summary.dto.js';
 import { UsernameParamDto } from './dto/username-param.dto.js';
+import { ReadmeDto } from './dto/readme.dto.js';
 
 @Controller('v1')
 @ApiTags('GitHub')
@@ -71,6 +72,32 @@ export class GitHubController {
         minStars: minStars ? Number(minStars) : undefined,
         maxStars: maxStars ? Number(maxStars) : undefined,
       });
+    } catch (error: unknown) {
+      this.handleGitHubError(error);
+    }
+  }
+
+  @Get('repos/:owner/:repo/readme')
+  @ApiOperation({
+    summary: 'Get repository README',
+    description: 'Retrieves the README file of a GitHub repository',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Repository README retrieved successfully',
+    type: ReadmeDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Repository or README not found',
+  })
+  @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
+  async getRepositoryReadme(
+    @Param('owner') owner: string,
+    @Param('repo') repo: string,
+  ): Promise<ReadmeDto> {
+    try {
+      return await this.githubService.getRepositoryReadme(owner, repo);
     } catch (error: unknown) {
       this.handleGitHubError(error);
     }
