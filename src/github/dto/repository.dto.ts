@@ -75,7 +75,6 @@ export class RepositoryDto {
   lastCommitDate?: string;
 }
 
-// For random repository endpoint: pick only subset of fields
 export class RandomRepositoryDto extends PickType(RepositoryDto, [
   'name',
   'description',

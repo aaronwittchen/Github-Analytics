@@ -110,4 +110,16 @@ export class UserSummaryDto {
     example: 'https://github.com/images/error/octocat_happy.gif',
   })
   ownerAvatarUrl: string;
+
+  @ApiProperty({
+    description: 'Indicates if the data was served from cache',
+    example: false,
+  })
+  _cached?: boolean;
+
+  @ApiProperty({
+    description: 'Time taken to fetch the data in milliseconds',
+    example: 150,
+  })
+  _responseTime?: number;
 }

@@ -1,20 +1,23 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Inject, Logger } from '@nestjs/common';
 import { Octokit } from '@octokit/rest';
-import { GitHubServiceConfig } from './types/github.types.js';
-import {
-  GitHubRepository,
-  LanguageStat,
-  LastCommit,
-  RepositoryDto,
-} from './interfaces/github.interfaces.js';
+import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { UserSummaryDto } from './dto/user-summary.dto.js';
+import { ReadmeDto } from './dto/readme.dto.js';
+import { RepositoryDto } from './dto/repository.dto.js';
+import { GitHubRepository, LanguageStat, LastCommit } from './interfaces/github.interfaces.js';
 
 @Injectable()
 export class GitHubService {
+  private readonly logger = new Logger(GitHubService.name);
   private readonly octokit: Octokit;
-  private readonly config: GitHubServiceConfig;
+  private readonly config = {
+    maxRepositories: parseInt(process.env.MAX_REPOSITORIES || '10', 10),
+    cacheTimeout: parseInt(process.env.CACHE_TIMEOUT || '300', 10) * 1000, // Convert to ms
+    languageStatsLimit: parseInt(process.env.LANGUAGE_STATS_LIMIT || '10', 10),
+    randomRepoMaxPages: parseInt(process.env.RANDOM_REPO_MAX_PAGES || '33', 10),
+  };
 
-  constructor() {
+  constructor(@Inject(CACHE_MANAGER) private readonly cacheManager: Cache) {
     if (!process.env.GITHUB_TOKEN) {
       throw new Error('GITHUB_TOKEN environment variable is required');
     }
@@ -22,16 +25,47 @@ export class GitHubService {
     this.octokit = new Octokit({
       auth: process.env.GITHUB_TOKEN,
     });
+  }
 
-    this.config = {
-      maxRepositories: 10,
-      languageStatsLimit: 10,
-      randomRepoMaxPages: 33,
-      cacheTimeout: 300,
-    };
+  private async getFromCache<T>(key: string): Promise<T | null> {
+    try {
+      const value = await this.cacheManager.get<T>(key);
+      if (value) {
+        this.logger.debug(`[CACHE] HIT for ${key}`);
+        return value;
+      }
+      this.logger.debug(`[CACHE] MISS for ${key}`);
+      return null;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[CACHE] Error getting from cache: ${errorMessage}`);
+      return null;
+    }
+  }
+
+  private async setCache<T>(key: string, value: T, ttl?: number): Promise<void> {
+    try {
+      const ttlMs = ttl || this.config.cacheTimeout;
+      await this.cacheManager.set(key, value, ttlMs);
+      this.logger.debug(`[CACHE] Set cache for ${key} with TTL: ${ttlMs}ms`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[CACHE] Error setting cache: ${errorMessage}`);
+    }
   }
 
   async getUserStats(username: string): Promise<UserSummaryDto> {
+    const startTime = Date.now();
+    const cacheKey = `user_stats:${username}`;
+    
+    // Try to get from cache first
+    const cached = await this.getFromCache<UserSummaryDto>(cacheKey);
+    if (cached) {
+      const endTime = Date.now();
+      this.logger.debug(`[CACHE] Served from cache in ${endTime - startTime}ms`);
+      return { ...cached, _cached: true, _responseTime: endTime - startTime };
+    }
+    
     try {
       const { data: user } = await this.octokit.rest.users.getByUsername({
         username: this.sanitizeUsername(username),
@@ -61,8 +95,8 @@ export class GitHubService {
           githubUrl: repo.html_url || '',
         }));
 
-      // Return UserSummaryDto format
-      return {
+      // Prepare the user stats
+      const userStats: UserSummaryDto = {
         username: user.login,
         name: user.name,
         bio: user.bio,
@@ -81,33 +115,78 @@ export class GitHubService {
         owner: user.login,
         ownerAvatarUrl: user.avatar_url || '',
       };
+
+      // Cache the result
+      await this.setCache(cacheKey, userStats);
+      
+      const endTime = Date.now();
+      this.logger.debug(`[API] Fetched from GitHub API in ${endTime - startTime}ms`);
+      
+      return { ...userStats, _cached: false, _responseTime: endTime - startTime };
     } catch (error: unknown) {
       this.handleGitHubError(error, `getUserStats for ${username}`);
     }
   }
 
-  async getRepositoryReadme(owner: string, repo: string): Promise<any> {
+  async getRepositoryReadme(owner: string, repo: string): Promise<ReadmeDto> {
+    const cacheKey = `readme:${owner}:${repo}`;
+    
+    // Try to get from cache first
+    const cached = await this.cacheManager.get<ReadmeDto>(cacheKey);
+    if (cached) {
+      console.log(`Cache HIT for ${cacheKey}`);
+      return cached;
+    }
+    
+    console.log(`Cache MISS for ${cacheKey}`);
+    
     try {
+      const sanitizedOwner = this.sanitizeUsername(owner);
+      const sanitizedRepo = this.sanitizeRepoName(repo);
+      
       const { data } = await this.octokit.rest.repos.getReadme({
-        owner: this.sanitizeUsername(owner),
-        repo: this.sanitizeRepoName(repo),
-        mediaType: {
-          format: 'raw+json',
-        },
+        owner: sanitizedOwner,
+        repo: sanitizedRepo,
       });
-      return data;
-    } catch (error) {
-      if (error.status === 404) {
+      
+      const result = {
+        name: data.name || 'README.md',
+        path: data.path || `/${sanitizedOwner}/${sanitizedRepo}/README.md`,
+        content: data.content || '',
+        encoding: data.encoding || 'base64',
+        size: data.size || 0,
+        htmlUrl:
+          data.html_url ||
+          `https://github.com/${sanitizedOwner}/${sanitizedRepo}/blob/main/README.md`,
+        downloadUrl:
+          data.download_url ||
+          `https://api.github.com/repos/${sanitizedOwner}/${sanitizedRepo}/readme`,
+      };
+      
+      // Store in cache
+      try {
+        console.log(`[CACHE] Setting cache for ${cacheKey} with TTL: ${this.config.cacheTimeout} seconds`);
+        await this.cacheManager.set(cacheKey, result, this.config.cacheTimeout * 1000);
+        console.log(`[CACHE] Successfully cached data for ${cacheKey}`);
+        
+        // Verify the cache was set
+        const verifyCache = await this.cacheManager.get(cacheKey);
+        console.log(`[CACHE] Cache verification for ${cacheKey}:`, verifyCache ? 'SUCCESS' : 'FAILED');
+      } catch (cacheError) {
+        console.error('[CACHE] Error setting cache:', cacheError);
+      }
+      
+      return result;
+    } catch (error: unknown) {
+      const status = (error as { status?: number }).status;
+      if (status === 404) {
         throw new HttpException('README not found', HttpStatus.NOT_FOUND);
       }
-      throw error;
+      this.handleGitHubError(error, `getRepositoryReadme for ${owner}/${repo}`);
     }
   }
 
-  async getRandomRepository(options?: {
-    minStars?: number;
-    maxStars?: number;
-  }): Promise<RepositoryDto> {
+  async getRandomRepository(options: { minStars?: number; maxStars?: number } = {}): Promise<RepositoryDto> {
     try {
       // Build the query based on star range
       let query = 'is:public';
@@ -119,15 +198,12 @@ export class GitHubService {
       } else if (options?.maxStars !== undefined) {
         query += ` stars:<=${options.maxStars}`;
       } else {
-        // Default to repositories with at least 10 stars if no range is provided
-        query += ' stars:>10';
+        // Default to repositories with at least 1 star if no range is provided
+        query += ' stars:>1';
       }
 
       // For very small ranges, we need to adjust the random page calculation
-      const maxPages =
-        options?.minStars && options?.minStars > 1000
-          ? 10
-          : this.config.randomRepoMaxPages;
+      const maxPages = options?.minStars && options.minStars > 1000 ? 10 : this.config.randomRepoMaxPages;
       const randomPage = Math.floor(Math.random() * maxPages) + 1;
 
       const { data } = await this.octokit.rest.search.repos({
@@ -218,16 +294,18 @@ export class GitHubService {
     }
   }
 
-  private async mapToRepositoryDto(repo: GitHubRepository): Promise<RepositoryDto> {
+  private async mapToRepositoryDto(
+    repo: GitHubRepository,
+  ): Promise<RepositoryDto> {
     let lastCommitDate: string | undefined;
     let languages: Array<{ name: string; percentage: number }> = [];
-    
+
     try {
       // Extract owner and repo name from the repository URL
       const urlParts = repo.html_url?.split('/');
       const owner = urlParts?.[3];
       const repoName = urlParts?.[4];
-      
+
       if (owner && repoName) {
         // Get the last commit for the repository
         const [commitsResponse, languagesResponse] = await Promise.all([
@@ -245,23 +323,28 @@ export class GitHubService {
         // Process commits for last commit date
         if (commitsResponse.data?.[0]?.commit) {
           const commit = commitsResponse.data[0].commit;
-          lastCommitDate = commit.committer?.date || 
-            commit.author?.date || 
-            repo.pushed_at || 
-            repo.updated_at || 
+          lastCommitDate =
+            commit.committer?.date ||
+            commit.author?.date ||
+            repo.pushed_at ||
+            repo.updated_at ||
             repo.created_at ||
             new Date().toISOString();
         } else {
-          lastCommitDate = repo.pushed_at || repo.updated_at || repo.created_at || new Date().toISOString();
+          lastCommitDate =
+            repo.pushed_at ||
+            repo.updated_at ||
+            repo.created_at ||
+            new Date().toISOString();
         }
 
         // Process languages
         const languageData = languagesResponse.data as Record<string, number>;
         const totalBytes = Object.values(languageData).reduce(
-          (sum, bytes) => sum + bytes, 
-          0
+          (sum, bytes) => sum + bytes,
+          0,
         );
-        
+
         if (totalBytes > 0) {
           languages = Object.entries(languageData)
             .map(([name, bytes]) => ({
@@ -271,18 +354,25 @@ export class GitHubService {
             .sort((a, b) => b.percentage - a.percentage);
         }
       } else {
-        lastCommitDate = repo.pushed_at || repo.updated_at || repo.created_at || new Date().toISOString();
+        lastCommitDate =
+          repo.pushed_at ||
+          repo.updated_at ||
+          repo.created_at ||
+          new Date().toISOString();
       }
     } catch (error) {
       console.error('Error fetching repository data:', error);
-      lastCommitDate = repo.pushed_at || repo.updated_at || repo.created_at || new Date().toISOString();
+      lastCommitDate =
+        repo.pushed_at ||
+        repo.updated_at ||
+        repo.created_at ||
+        new Date().toISOString();
     }
-    
+
     return {
       name: repo.name,
       description: repo.description,
       language: repo.language,
-      languages: languages.length > 0 ? languages : undefined,
       stars: repo.stargazers_count || 0,
       forks: repo.forks_count || 0,
       openIssues: repo.open_issues_count || 0,
@@ -295,6 +385,12 @@ export class GitHubService {
     };
   }
 
+  private parseEnvInt(key: string, defaultValue: number): number {
+    const value = process.env[key];
+    const parsed = value ? parseInt(value, 10) : defaultValue;
+    return isNaN(parsed) ? defaultValue : parsed;
+  }
+
   private sanitizeUsername(username: string): string {
     // Remove any leading/trailing whitespace and @ symbols
     return username.trim().replace(/^@/, '');
@@ -305,8 +401,8 @@ export class GitHubService {
     return repo.trim().replace(/\.git$/, '');
   }
 
-  private handleGitHubError(error: unknown, context?: string): never {
-    const status = (error as { status?: number }).status;
+  private handleGitHubError(error: any, context?: string): never {
+    const status = error?.status;
     const message = error instanceof Error ? error.message : 'Unknown error';
 
     console.error(`GitHub Error${context ? ` (${context})` : ''}:`, message);

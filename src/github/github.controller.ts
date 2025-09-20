@@ -55,7 +55,8 @@ export class GitHubController {
   @Get('repositories/random')
   @ApiOperation({
     summary: 'Get a random GitHub repository',
-    description: 'Retrieves a random repository from GitHub within the specified star range',
+    description:
+      'Retrieves a random repository from GitHub within the specified star range',
   })
   @ApiResponse({
     status: 200,

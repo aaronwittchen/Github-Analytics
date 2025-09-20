@@ -15,7 +15,8 @@ export class ReadmeDto {
 
   @ApiProperty({
     description: 'Base64 encoded content of the README',
-    example: 'IyBFeGFtcGxlIFJFQURNRSBmaWxlCkRlc2NyaXB0aW9uIG9mIHRoZSBwcm9qZWN0Lg==',
+    example:
+      'IyBFeGFtcGxlIFJFQURNRSBmaWxlCkRlc2NyaXB0aW9uIG9mIHRoZSBwcm9qZWN0Lg==',
   })
   content: string;
 
