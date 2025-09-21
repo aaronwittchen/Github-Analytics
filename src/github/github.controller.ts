@@ -3,10 +3,9 @@ import {
   Get,
   Param,
   Query,
-  HttpException,
-  HttpStatus,
   UsePipes,
   ValidationPipe,
+  UseFilters,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,18 +16,21 @@ import {
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { GitHubService } from './github.service.js';
-import { RepositoryDto } from './dto/repository.dto.js';
+import { RepositoryDto, RandomRepositoryDto } from './dto/repository.dto.js';
 import { UserSummaryDto } from './dto/user-summary.dto.js';
 import { UsernameParamDto } from './dto/username-param.dto.js';
 import { ReadmeDto } from './dto/readme.dto.js';
+import { GitHubExceptionFilter } from './filters/github-exception.filter.js';
+import { RandomRepositoryQueryDto } from './dto/random-repository-query.dto.js';
 
 @Controller('v1')
 @ApiTags('GitHub')
+@UseFilters(GitHubExceptionFilter)
+@UsePipes(new ValidationPipe({ transform: true }))
 export class GitHubController {
   constructor(private readonly githubService: GitHubService) {}
 
   @Get('users/:username/summary')
-  @UsePipes(new ValidationPipe({ transform: true }))
   @ApiOperation({
     summary: 'Get GitHub user summary',
     description:
@@ -45,11 +47,7 @@ export class GitHubController {
   async getUserSummary(
     @Param() params: UsernameParamDto,
   ): Promise<UserSummaryDto> {
-    try {
-      return await this.githubService.getUserStats(params.username);
-    } catch (error: unknown) {
-      this.handleGitHubError(error, params.username);
-    }
+    return await this.githubService.getUserStats(params.username);
   }
 
   @Get('repositories/random')
@@ -61,21 +59,39 @@ export class GitHubController {
   @ApiResponse({
     status: 200,
     description: 'Random repository retrieved successfully',
-    type: RepositoryDto,
+    type: RandomRepositoryDto,
   })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters' })
   @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
   async getRandomRepository(
-    @Query('min_stars') minStars?: number,
-    @Query('max_stars') maxStars?: number,
+    @Query() query: RandomRepositoryQueryDto,
+  ): Promise<RandomRepositoryDto> {
+    return await this.githubService.getRandomRepository({
+      minStars: query.min_stars,
+      maxStars: query.max_stars,
+    });
+  }
+
+  @Get('repos/:owner/:repo')
+  @ApiOperation({
+    summary: 'Get repository details',
+    description: 'Retrieves details of a specific GitHub repository',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Repository details retrieved successfully',
+    type: RepositoryDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Repository not found',
+  })
+  @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
+  async getRepository(
+    @Param('owner') owner: string,
+    @Param('repo') repo: string,
   ): Promise<RepositoryDto> {
-    try {
-      return await this.githubService.getRandomRepository({
-        minStars: minStars ? Number(minStars) : undefined,
-        maxStars: maxStars ? Number(maxStars) : undefined,
-      });
-    } catch (error: unknown) {
-      this.handleGitHubError(error);
-    }
+    return await this.githubService.getRepository(owner, repo);
   }
 
   @Get('repos/:owner/:repo/readme')
@@ -97,32 +113,6 @@ export class GitHubController {
     @Param('owner') owner: string,
     @Param('repo') repo: string,
   ): Promise<ReadmeDto> {
-    try {
-      return await this.githubService.getRepositoryReadme(owner, repo);
-    } catch (error: unknown) {
-      this.handleGitHubError(error);
-    }
-  }
-
-  private handleGitHubError(error: unknown, username?: string): never {
-    const status = (error as { status?: number }).status;
-    const message =
-      error instanceof Error ? error.message : 'An unknown error occurred';
-
-    if (status === 404 && username) {
-      throw new HttpException(
-        `User '${username}' not found`,
-        HttpStatus.NOT_FOUND,
-      );
-    } else if (status === 403) {
-      throw new HttpException(
-        'GitHub API rate limit exceeded. Please try again later.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-    throw new HttpException(
-      message,
-      typeof status === 'number' ? status : HttpStatus.INTERNAL_SERVER_ERROR,
-    );
+    return await this.githubService.getRepositoryReadme(owner, repo);
   }
 }

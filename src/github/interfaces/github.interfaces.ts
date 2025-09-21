@@ -1,5 +1,3 @@
-// interfaces/github.interface.ts
-
 export interface GitHubUser {
   login: string;
   name?: string | null;
@@ -7,21 +5,21 @@ export interface GitHubUser {
   location?: string | null;
   company?: string | null;
   blog?: string | null;
-  avatar_url?: string;
-  html_url?: string;
-  followers?: number;
-  following?: number;
-  public_repos?: number;
-  public_gists?: number;
-  created_at?: string;
-  updated_at?: string;
+  avatar_url: string;
+  html_url: string;
+  followers: number;
+  following: number;
+  public_repos: number;
+  public_gists: number;
+  created_at: string;
+  updated_at: string;
   [key: string]: any; // catch-all for extra fields
 }
 
 export interface GitHubRepository {
   id: number;
   name: string;
-  full_name: string | null;
+  full_name: string;
   language: string | null;
   description: string | null;
   stargazers_count: number;
@@ -29,8 +27,10 @@ export interface GitHubRepository {
   open_issues_count: number;
   private: boolean;
   html_url: string;
-  created_at: string | null;
-  updated_at: string | null;
+  url: string;
+  created_at: string;
+  updated_at: string;
+  pushed_at?: string;
   owner: {
     login: string;
     id: number;
@@ -42,20 +42,7 @@ export interface GitHubRepository {
   [key: string]: any; // allows extra properties
 }
 
-export interface RepositoryDto {
-  name: string;
-  description: string | null;
-  language: string | null;
-  stars: number;
-  forks: number;
-  openIssues: number;
-  isPrivate: boolean;
-  createdAt: string;
-  updatedAt: string;
-  htmlUrl: string;
-  githubUrl: string;
-  [key: string]: any; // catch-all
-}
+// This interface is now defined in repository.dto.ts
 
 export interface LanguageStat {
   name?: string;
@@ -72,25 +59,4 @@ export interface LastCommit {
   [key: string]: any;
 }
 
-export interface UserStats {
-  username: string;
-  name?: string | null;
-  bio?: string | null;
-  location?: string | null;
-  company?: string | null;
-  blog?: string | null;
-  avatarUrl?: string;
-  githubUrl?: string;
-  followers?: number;
-  following?: number;
-  publicRepos?: number;
-  publicGists?: number;
-  createdAt?: string;
-  updatedAt?: string;
-  topRepositories?: RepositoryDto[];
-  languages?: LanguageStat[];
-  lastCommit?: LastCommit;
-  owner?: string;
-  ownerAvatarUrl?: string;
-  [key: string]: any;
-}
+// This interface is now defined in user-summary.dto.ts
