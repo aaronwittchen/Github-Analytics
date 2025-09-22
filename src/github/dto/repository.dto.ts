@@ -7,6 +7,13 @@ export class RepositoryDto {
   name: string;
 
   @ApiProperty({
+    description: 'Repository owner username',
+    example: 'username',
+  })
+  @IsString()
+  owner: string;
+
+  @ApiProperty({
     description: 'Repository description',
     example: 'An awesome project',
     nullable: true,
@@ -106,4 +113,11 @@ export class RandomRepositoryDto extends PickType(RepositoryDto, [
   'createdAt',
   'updatedAt',
   'htmlUrl',
-] as const) {}
+] as const) {
+  @ApiProperty({
+    description: 'Repository owner username',
+    example: 'username',
+  })
+  @IsString()
+  owner: string;
+}

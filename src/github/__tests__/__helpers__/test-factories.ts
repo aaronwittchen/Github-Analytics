@@ -1,5 +1,3 @@
-// src/github/__tests__/__helpers__/test-factories.ts
-
 import { UserSummaryDto } from '../../dto/user-summary.dto.js';
 import { RepositoryDto } from '../../dto/repository.dto.js';
 
@@ -39,7 +37,7 @@ export const createMockRepoData = (overrides: Partial<any> = {}) => ({
 export const createMockReadmeData = (overrides: Partial<any> = {}) => ({
   name: 'README.md',
   path: 'README.md',
-  content: 'IyBUZXN0IFJlcG9zaXRvcnk=', // Base64 for "# Test Repository"
+  content: 'IyBUZXN0IFJlcG9zaXRvcnk=', // Base64
   encoding: 'base64',
   size: 1024,
   html_url: 'https://github.com/testuser/test-repo/blob/main/README.md',
@@ -86,6 +84,7 @@ export const createMockRepositoryDto = (
   overrides: Partial<RepositoryDto> = {},
 ): RepositoryDto => ({
   name: 'test-repo',
+  owner: 'testuser',
   description: 'Test Repository',
   language: 'TypeScript',
   stars: 100,

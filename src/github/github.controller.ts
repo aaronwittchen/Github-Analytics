@@ -16,7 +16,7 @@ import {
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { GitHubService } from './github.service.js';
-import { RepositoryDto, RandomRepositoryDto } from './dto/repository.dto.js';
+import { RepositoryDto } from './dto/repository.dto.js';
 import { UserSummaryDto } from './dto/user-summary.dto.js';
 import { UsernameParamDto } from './dto/username-param.dto.js';
 import { ReadmeDto } from './dto/readme.dto.js';
@@ -34,7 +34,7 @@ export class GitHubController {
   @ApiOperation({
     summary: 'Get GitHub user summary',
     description:
-      'Retrieves comprehensive GitHub user information including profile data and top 5 repositories sorted by stars',
+      'Retrieves comprehensive GitHub user information including profile data and top repositories sorted by stars',
   })
   @ApiResponse({
     status: 200,
@@ -47,7 +47,10 @@ export class GitHubController {
   async getUserSummary(
     @Param() params: UsernameParamDto,
   ): Promise<UserSummaryDto> {
-    return await this.githubService.getUserStats(params.username);
+    const result = await this.githubService.getUserStats(params.username);
+    // Return only the DTO properties, excluding metadata
+    const { cached, responseTime, ...userSummary } = result;
+    return userSummary;
   }
 
   @Get('repositories/random')
@@ -59,13 +62,13 @@ export class GitHubController {
   @ApiResponse({
     status: 200,
     description: 'Random repository retrieved successfully',
-    type: RandomRepositoryDto,
+    type: RepositoryDto,
   })
   @ApiBadRequestResponse({ description: 'Invalid query parameters' })
   @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
   async getRandomRepository(
     @Query() query: RandomRepositoryQueryDto,
-  ): Promise<RandomRepositoryDto> {
+  ): Promise<RepositoryDto> {
     return await this.githubService.getRandomRepository({
       minStars: query.min_stars,
       maxStars: query.max_stars,
@@ -91,7 +94,10 @@ export class GitHubController {
     @Param('owner') owner: string,
     @Param('repo') repo: string,
   ): Promise<RepositoryDto> {
-    return await this.githubService.getRepository(owner, repo);
+    const result = await this.githubService.getRepository(owner, repo);
+    // Return only the DTO properties, excluding metadata
+    const { cached, ...repository } = result;
+    return repository;
   }
 
   @Get('repos/:owner/:repo/readme')
@@ -113,6 +119,9 @@ export class GitHubController {
     @Param('owner') owner: string,
     @Param('repo') repo: string,
   ): Promise<ReadmeDto> {
-    return await this.githubService.getRepositoryReadme(owner, repo);
+    const result = await this.githubService.getRepositoryReadme(owner, repo);
+    // Return only the DTO properties, excluding metadata
+    const { cached, ...readme } = result;
+    return readme;
   }
 }

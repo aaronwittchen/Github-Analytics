@@ -61,13 +61,14 @@ describe('GitHubCacheService', () => {
     });
 
     it('should return null and log error when cache fails', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
       cacheManager.get.mockRejectedValue(new Error('Cache error'));
 
       const result = await service.get('test-key');
 
       expect(result).toBeNull();
-      // Note: The service logs to logger, not console.error directly
       expect(consoleSpy).not.toHaveBeenCalled();
     });
   });

@@ -123,15 +123,15 @@ async function bootstrap() {
     // Start the server
     await app.listen(port, '0.0.0.0');
 
-    logger.log(`🚀 Application is running in ${nodeEnv} mode`);
-    logger.log(`🌐 Server is listening on: http://localhost:${port}`);
+    logger.log(`Application is running in ${nodeEnv} mode`);
+    logger.log(`Server is listening on: http://localhost:${port}`);
     logger.log(
-      `📊 API endpoints available at: http://localhost:${port}/${apiPrefix}`,
+      `API endpoints available at: http://localhost:${port}/${apiPrefix}`,
     );
 
     if (nodeEnv !== 'production') {
       logger.log(
-        `📚 API documentation: http://localhost:${port}/${apiPrefix}/docs`,
+        `API documentation: http://localhost:${port}/${apiPrefix}/docs`,
       );
     }
   } catch (error) {

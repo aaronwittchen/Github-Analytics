@@ -1,3 +1,4 @@
+// Core GitHub entity interfaces
 export interface GitHubUser {
   login: string;
   name?: string | null;
@@ -42,7 +43,46 @@ export interface GitHubRepository {
   [key: string]: any; // allows extra properties
 }
 
-// This interface is now defined in repository.dto.ts
+// API Response interfaces
+export interface GitHubCommit {
+  sha: string;
+  commit: {
+    message: string;
+    author: {
+      name: string;
+      email: string;
+      date: string;
+    };
+    committer: {
+      name: string;
+      email: string;
+      date: string;
+    };
+  };
+  html_url: string;
+}
+
+export interface GitHubReadmeResponse {
+  name: string;
+  path: string;
+  content: string;
+  encoding: string;
+  size: number;
+  html_url: string;
+  download_url: string;
+}
+
+export interface GitHubSearchResponse {
+  total_count: number;
+  incomplete_results: boolean;
+  items: GitHubRepository[];
+}
+
+// Utility interfaces
+export interface PaginationOptions {
+  page?: number;
+  perPage?: number;
+}
 
 export interface LanguageStat {
   name?: string;
@@ -59,4 +99,21 @@ export interface LastCommit {
   [key: string]: any;
 }
 
-// This interface is now defined in user-summary.dto.ts
+// Transform service specific interface (could also go in a separate dto file)
+export interface UserSummaryDto {
+  username: string;
+  name: string | null;
+  bio: string | null;
+  location: string | null;
+  company: string | null;
+  blog: string | null;
+  avatarUrl: string;
+  htmlUrl: string;
+  followers: number;
+  following: number;
+  publicRepos: number;
+  publicGists: number;
+  createdAt: string;
+  updatedAt: string;
+  topRepositories: any[]; // Replace with proper RepositoryDto import
+}

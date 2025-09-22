@@ -1,6 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUrl, Min, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { RepositoryDto } from './repository.dto.js';
 
 export class UserSummaryDto {
@@ -134,7 +143,6 @@ export class UserSummaryDto {
   @Type(() => RepositoryDto)
   topRepositories: RepositoryDto[];
 
-  // Optional metadata
   @ApiProperty({
     description: 'Indicates if the data was served from cache',
     example: false,
