@@ -59,7 +59,7 @@ export class GitHubController {
   @ApiOperation({
     summary: 'Get a random GitHub repository',
     description:
-      'Retrieves a random repository from GitHub within the specified star range',
+      'Retrieves a random repository from GitHub within the specified star range and optional country',
   })
   @ApiResponse({
     status: 200,
@@ -75,6 +75,7 @@ export class GitHubController {
       minStars: query.min_stars,
       maxStars: query.max_stars,
       language: query.language,
+      country: query.country,
     });
   }
 

@@ -8,6 +8,17 @@ import { GitHubCacheService } from './services/github-cache.service.js';
 import { GitHubTransformService } from './services/github-transform.service.js';
 import { GitHubConfigService } from '../common/config/github-config.service.js';
 import { GitHubValidators } from '../common/validators/github.validators.js';
+import { DEFAULTS } from '../common/constants/defaults.js';
+
+const COUNTRY_ALIASES: Record<string, string[]> = {
+  'united states': ['united states', 'america', 'u.s.a.', 'u.s.'],
+  'india': ['india', 'bharat', 'भारत'],
+  'japan': ['japan', '日本', 'nippon'],
+  'germany': ['germany', 'deutschland'],
+  'france': ['france', 'français'],
+  'china': ['china', '中国', 'zhongguo'],
+  // Add more as needed
+};
 
 interface UserSummaryResponse extends UserSummaryDto {
   cached: boolean;
@@ -272,19 +283,15 @@ export class GitHubService {
       minStars?: number;
       maxStars?: number;
       language?: string;
+      country?: string;
     } = {},
   ): Promise<RepositoryDto> {
     try {
-      // Validate star range
       const validatedOptions = GitHubValidators.validateStarRange(
         options.minStars,
         options.maxStars,
       );
-
-      // Build the search query
       let query = 'is:public';
-
-      // Add star range to query
       if (
         validatedOptions.minStars !== undefined &&
         validatedOptions.maxStars !== undefined
@@ -295,15 +302,11 @@ export class GitHubService {
       } else if (validatedOptions.maxStars !== undefined) {
         query += ` stars:<=${validatedOptions.maxStars}`;
       } else {
-        // Default to repositories with at least 1 star
         query += ' stars:>1';
       }
-
-      // Add language filter if provided
       if (options.language) {
         const normalizedLang = this.normalizeLanguage(options.language);
         if (normalizedLang) {
-          // Quote languages with special characters or spaces
           const needsQuotes = /[^A-Za-z0-9_-]/.test(normalizedLang);
           const langQualifier = needsQuotes
             ? `"${normalizedLang}"`
@@ -311,33 +314,78 @@ export class GitHubService {
           query += ` language:${langQualifier}`;
         }
       }
-
-      // Calculate random page (GitHub search is limited to 1000 results, 100 pages max)
+      // Try multiple random pages for better country coverage
+      const maxTries = 10;
       const maxPages = Math.min(
-        this.config.config.randomRepoMaxPages || 50,
+        this.config.config.randomRepoMaxPages || DEFAULTS.RANDOM_REPO_MAX_PAGES || 50,
         100,
       );
-      const randomPage = Math.floor(Math.random() * maxPages) + 1;
-
-      // Search repositories with proper options object
-      const searchResponse = await this.apiService.searchRepositories(query, {
-        page: randomPage,
-        perPage: 30,
-        sort: 'stars',
-      });
-
-      if (!searchResponse.items?.length) {
-        throw new Error('No repositories found matching the criteria');
+      let filteredRepos: GitHubRepository[] = [];
+      let lastError: any = null;
+      for (let attempt = 0; attempt < maxTries; attempt++) {
+        const randomPage = Math.floor(Math.random() * maxPages) + 1;
+        const searchResponse = await this.apiService.searchRepositories(query, {
+          page: randomPage,
+          perPage: 30,
+          sort: 'stars',
+        });
+        if (!searchResponse.items?.length) {
+          lastError = new Error('No repositories found matching the criteria');
+          continue;
+        }
+        filteredRepos = searchResponse.items as GitHubRepository[];
+        // Country filter logic
+        if (options.country) {
+          const countryLower = options.country.trim().toLowerCase();
+          const aliases = COUNTRY_ALIASES[countryLower] || [countryLower];
+          const limit = 5;
+          const reposWithOwners: GitHubRepository[] = [];
+          let i = 0;
+          while (i < filteredRepos.length) {
+            const batch = filteredRepos.slice(i, i + limit);
+            const ownerProfiles = await Promise.all(
+              batch.map(async (repo) => {
+                try {
+                  const user = await this.apiService.getUser(repo.owner.login);
+                  return { repo, location: user.location };
+                } catch {
+                  return { repo, location: undefined };
+                }
+              })
+            );
+            for (const { repo, location } of ownerProfiles) {
+              if (
+                location &&
+                aliases.some(alias => new RegExp(`\\b${alias}\\b`, 'i').test(location))
+              ) {
+                reposWithOwners.push(repo);
+              }
+            }
+            i += limit;
+          }
+          filteredRepos = reposWithOwners;
+        }
+        if (filteredRepos.length) break;
       }
-
-      // Select a random repository from the current page
-      const randomIndex = Math.floor(
-        Math.random() * searchResponse.items.length,
-      );
-      const selectedRepo = searchResponse.items[randomIndex] as GitHubRepository;
-
+      let selectedRepo: GitHubRepository | undefined;
+      let selectedOwnerLocation: string | null = null;
+      if (filteredRepos.length) {
+        const randomIndex = Math.floor(Math.random() * filteredRepos.length);
+        selectedRepo = filteredRepos[randomIndex];
+        // Fetch owner's location for the selected repo
+        try {
+          const user = await this.apiService.getUser(selectedRepo.owner.login);
+          selectedOwnerLocation = user.location || null;
+        } catch {
+          selectedOwnerLocation = null;
+        }
+      }
+      if (!selectedRepo) {
+        throw lastError || new Error('No repositories found for the specified country.');
+      }
       const baseDto = this.transformService.transformToRepositoryDto(selectedRepo);
-      // Fetch language composition for more accurate display
+      // Attach ownerLocation
+      (baseDto as any).ownerLocation = selectedOwnerLocation;
       try {
         const langBytes = await this.apiService.getRepositoryLanguages(
           selectedRepo.owner?.login || '',
@@ -345,7 +393,6 @@ export class GitHubService {
         );
         return this.transformService.attachLanguagePercentages(baseDto, langBytes);
       } catch (e) {
-        // If languages call fails, return base DTO
         return baseDto;
       }
     } catch (error) {

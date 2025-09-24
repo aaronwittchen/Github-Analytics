@@ -35,4 +35,9 @@ export class RandomRepositoryQueryDto {
   @IsOptional()
   @IsString()
   language?: string;
+
+  @ApiPropertyOptional({ description: "Filter by owner's country (from profile)", example: 'United States' })
+  @IsOptional()
+  @IsString()
+  country?: string;
 }

@@ -114,6 +114,16 @@ export class RepositoryDto {
   @IsDateString()
   @IsOptional()
   lastCommitDate: string | null;
+
+  @ApiProperty({
+    description: "Owner's location (from GitHub profile)",
+    example: 'Bangalore, India',
+    required: false,
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  ownerLocation?: string | null;
 }
 
 // For random repositories - excludes expensive lastCommitDate field
@@ -128,6 +138,7 @@ export class RandomRepositoryDto extends PickType(RepositoryDto, [
   'createdAt',
   'updatedAt',
   'htmlUrl',
+  'ownerLocation',
 ] as const) {
   @ApiProperty({
     description: 'Repository owner username',
