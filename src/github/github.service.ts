@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { UserSummaryDto } from './dto/user-summary.dto.js';
 import { ReadmeDto } from './dto/readme.dto.js';
 import { RepositoryDto } from './dto/repository.dto.js';
+import { ContributionGraphResponseDto } from './dto/contribution-graph.dto.js';
 import { GitHubRepository } from './interfaces/github.interfaces.js';
 import { GitHubApiService } from './services/github-api.service.js';
 import { GitHubCacheService } from './services/github-cache.service.js';
@@ -564,5 +565,73 @@ export class GitHubService {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
+  }
+
+  async getContributionGraph(username: string): Promise<ContributionGraphResponseDto> {
+    const cacheKey = `contributions:${username}`;
+    
+    try {
+      // Try to get from cache first
+      const cachedData = await this.cacheService.get<ContributionGraphResponseDto>(cacheKey);
+      if (cachedData) {
+        return {
+          ...cachedData,
+          cached: true,
+        };
+      }
+
+      // Fetch from GitHub API
+      const data = await this.apiService.getContributionGraph(username);
+      const weeks = data.user.contributionsCollection.contributionCalendar.weeks;
+      const totalContributions = data.user.contributionsCollection.contributionCalendar.totalContributions;
+      
+      // Process the weeks data to match our DTO
+      const processedWeeks = weeks.map(week => 
+        week.contributionDays.map(day => ({
+          date: day.date,
+          count: day.contributionCount,
+        }))
+      );
+
+      // Generate month labels
+      const monthLabels = this.generateMonthLabels(processedWeeks);
+
+      const result: ContributionGraphResponseDto = {
+        weeks: processedWeeks,
+        totalContributions,
+        monthLabels,
+      };
+
+      // Cache the result for 1 hour
+      await this.cacheService.set(cacheKey, result, 3600);
+      
+      return {
+        ...result,
+        cached: false,
+      };
+    } catch (error) {
+      this.logger.error(`Error getting contribution graph for ${username}`, error);
+      throw error;
+    }
+  }
+
+  private generateMonthLabels(weeks: Array<Array<{ date: string }>>): string[] {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    const monthSet = new Set<string>();
+    
+    // Process each week and each day to find unique months
+    for (const week of weeks) {
+      for (const day of week) {
+        const date = new Date(day.date);
+        const monthName = months[date.getMonth()];
+        monthSet.add(monthName);
+      }
+    }
+    
+    return Array.from(monthSet);
   }
 }

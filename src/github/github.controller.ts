@@ -20,6 +20,7 @@ import { RepositoryDto } from './dto/repository.dto.js';
 import { UserSummaryDto } from './dto/user-summary.dto.js';
 import { UsernameParamDto } from './dto/username-param.dto.js';
 import { ReadmeDto } from './dto/readme.dto.js';
+import { ContributionGraphResponseDto } from './dto/contribution-graph.dto.js';
 import { GitHubExceptionFilter } from './filters/github-exception.filter.js';
 import { RandomRepositoryQueryDto } from './dto/random-repository-query.dto.js';
 
@@ -77,6 +78,25 @@ export class GitHubController {
       language: query.language,
       country: query.country,
     });
+  }
+
+  @Get('users/:username/contributions')
+  @ApiOperation({
+    summary: 'Get user contribution graph data',
+    description: 'Retrieves contribution data for the specified user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contribution data retrieved successfully',
+    type: ContributionGraphResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid username format' })
+  @ApiNotFoundResponse({ description: 'GitHub user not found' })
+  @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
+  async getUserContributionGraph(
+    @Param() params: UsernameParamDto,
+  ): Promise<ContributionGraphResponseDto> {
+    return this.githubService.getContributionGraph(params.username);
   }
 
   @Get('repos/:owner/:repo')

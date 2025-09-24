@@ -127,6 +127,48 @@ export class GitHubApiService {
     }
   }
 
+  async getReadme(username: string, repo: string): Promise<GitHubReadmeResponse> {
+    try {
+      const { data } = await this.octokit.rest.repos.getReadme({
+        owner: username,
+        repo,
+      });
+      return data as GitHubReadmeResponse;
+    } catch (error: any) {
+      this.handleApiError(error, `getReadme for ${username}/${repo}`);
+    }
+  }
+
+  async getContributionGraph(username: string): Promise<any> {
+    const query = `
+      query($username: String!) {
+        user(login: $username) {
+          contributionsCollection {
+            contributionCalendar {
+              totalContributions
+              weeks {
+                contributionDays {
+                  date
+                  contributionCount
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    try {
+      const result = await this.octokit.graphql(query, {
+        username,
+      });
+
+      return result;
+    } catch (error: any) {
+      this.handleApiError(error, `getContributionGraph for ${username}`);
+    }
+  }
+
   async searchRepositories(
     query: string,
     options: PaginationOptions & {
