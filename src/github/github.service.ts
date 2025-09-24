@@ -33,13 +33,16 @@ export class GitHubService {
     private readonly config: GitHubConfigService,
   ) {}
 
-  async getUserStats(username: string): Promise<UserSummaryResponse> {
+  async getUserStats(username: string, limit?: number): Promise<UserSummaryResponse> {
     const startTime = Date.now();
 
     try {
       // Validate input
       const validatedUsername = GitHubValidators.validateUsername(username);
-      const cacheKey = this.cacheService.generateUserStatsKey(validatedUsername);
+      // Resolve desired max repo count from request or config
+      const requestedLimit = typeof limit === 'number' && isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined;
+      const maxReposCfg = requestedLimit ?? (this.config?.config?.maxRepositories || 10);
+      const cacheKey = this.cacheService.generateUserStatsKey(validatedUsername, maxReposCfg);
 
       // Try to get from cache first
       const cached = await this.cacheService.get<UserSummaryDto>(cacheKey);
@@ -61,7 +64,7 @@ export class GitHubService {
 
       // Transform and sort repositories
       const sortedRepos = this.transformService.sortRepositoriesByStars(repos);
-      const maxRepos = this.config?.config?.maxRepositories || 10; // Updated config access
+      const maxRepos = maxReposCfg; // already resolved above
       const limitedRepos = this.transformService.limitRepositories(
         sortedRepos,
         maxRepos,
@@ -298,7 +301,15 @@ export class GitHubService {
 
       // Add language filter if provided
       if (options.language) {
-        query += ` language:${options.language}`;
+        const normalizedLang = this.normalizeLanguage(options.language);
+        if (normalizedLang) {
+          // Quote languages with special characters or spaces
+          const needsQuotes = /[^A-Za-z0-9_-]/.test(normalizedLang);
+          const langQualifier = needsQuotes
+            ? `"${normalizedLang}"`
+            : normalizedLang;
+          query += ` language:${langQualifier}`;
+        }
       }
 
       // Calculate random page (GitHub search is limited to 1000 results, 100 pages max)
@@ -323,11 +334,20 @@ export class GitHubService {
       const randomIndex = Math.floor(
         Math.random() * searchResponse.items.length,
       );
-      const selectedRepo = searchResponse.items[randomIndex];
+      const selectedRepo = searchResponse.items[randomIndex] as GitHubRepository;
 
-      return this.transformService.transformToRepositoryDto(
-        selectedRepo as GitHubRepository,
-      );
+      const baseDto = this.transformService.transformToRepositoryDto(selectedRepo);
+      // Fetch language composition for more accurate display
+      try {
+        const langBytes = await this.apiService.getRepositoryLanguages(
+          selectedRepo.owner?.login || '',
+          selectedRepo.name,
+        );
+        return this.transformService.attachLanguagePercentages(baseDto, langBytes);
+      } catch (e) {
+        // If languages call fails, return base DTO
+        return baseDto;
+      }
     } catch (error) {
       this.logger.error('Failed to get random repository:', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -335,6 +355,55 @@ export class GitHubService {
       });
       throw error;
     }
+  }
+
+  private normalizeLanguage(input: string | undefined | null): string | null {
+    if (!input) return null;
+    const v = String(input).trim();
+    if (!v) return null;
+    const lower = v.toLowerCase();
+    const aliasMap: Record<string, string> = {
+      'js': 'JavaScript',
+      'javascript': 'JavaScript',
+      'ts': 'TypeScript',
+      'typescript': 'TypeScript',
+      'py': 'Python',
+      'py3': 'Python',
+      'csharp': 'C#',
+      'c#': 'C#',
+      'cpp': 'C++',
+      'c++': 'C++',
+      'objective-c': 'Objective-C',
+      'objective c': 'Objective-C',
+      'objc': 'Objective-C',
+      'vue': 'Vue',
+      'vue.js': 'Vue',
+      'vuejs': 'Vue',
+      'shell': 'Shell',
+      'sh': 'Shell',
+      'jupyter': 'Jupyter Notebook',
+      'jupyter notebook': 'Jupyter Notebook',
+      'md': 'Markdown',
+      'html': 'HTML',
+      'css': 'CSS',
+      'go': 'Go',
+      'golang': 'Go',
+      'rs': 'Rust',
+      'rb': 'Ruby',
+      'php': 'PHP',
+      'kt': 'Kotlin',
+      'c': 'C',
+      'r': 'R',
+      'swift': 'Swift',
+      'scala': 'Scala',
+      'dart': 'Dart',
+      'elixir': 'Elixir',
+    };
+    // Exact alias match first
+    if (aliasMap[lower]) return aliasMap[lower];
+    // Title-case common inputs
+    const title = v.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.slice(1));
+    return title;
   }
 
   async searchRepositories(

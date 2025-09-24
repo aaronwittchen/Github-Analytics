@@ -89,6 +89,21 @@ export class RepositoryDto {
   htmlUrl: string;
 
   @ApiProperty({
+    description: 'Languages used in the repository with percentage composition',
+    required: false,
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        percentage: { type: 'number' },
+      },
+    },
+  })
+  @IsOptional()
+  languages?: Array<{ name: string; percentage: number }>;
+
+  @ApiProperty({
     description: 'Date of the last commit',
     example: '2023-06-20T14:45:30Z',
     type: String,

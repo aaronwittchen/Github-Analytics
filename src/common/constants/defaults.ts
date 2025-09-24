@@ -7,7 +7,7 @@ export const DEFAULTS = {
   /**
    * The maximum number of repositories to fetch for a user/org.
    */
-  MAX_REPOSITORIES: 10,
+  MAX_REPOSITORIES: 12,
 
   /**
    * How long cached GitHub API responses remain valid (in ms).

@@ -46,8 +46,10 @@ export class GitHubController {
   @ApiTooManyRequestsResponse({ description: 'GitHub API rate limit exceeded' })
   async getUserSummary(
     @Param() params: UsernameParamDto,
+    @Query('limit') limit?: string,
   ): Promise<UserSummaryDto> {
-    const result = await this.githubService.getUserStats(params.username);
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    const result = await this.githubService.getUserStats(params.username, parsedLimit);
     // Return only the DTO properties, excluding metadata
     const { cached, responseTime, ...userSummary } = result;
     return userSummary;
@@ -72,6 +74,7 @@ export class GitHubController {
     return await this.githubService.getRandomRepository({
       minStars: query.min_stars,
       maxStars: query.max_stars,
+      language: query.language,
     });
   }
 

@@ -5,7 +5,7 @@ export class GitHubApiError extends HttpException {
     message: string,
     statusCode: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR,
     public readonly context?: string,
-    public readonly originalError?: any
+    public readonly originalError?: any,
   ) {
     super(message, statusCode);
     this.name = 'GitHubApiError';
@@ -21,7 +21,11 @@ export class GitHubNotFoundError extends GitHubApiError {
 
 export class GitHubRateLimitError extends GitHubApiError {
   constructor(context?: string) {
-    super('GitHub API rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS, context);
+    super(
+      'GitHub API rate limit exceeded',
+      HttpStatus.TOO_MANY_REQUESTS,
+      context,
+    );
     this.name = 'GitHubRateLimitError';
   }
 }

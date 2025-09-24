@@ -20,18 +20,28 @@ describe('GitHubValidators', () => {
     });
 
     it('should throw error for empty username', () => {
-      expect(() => GitHubValidators.validateUsername('')).toThrow(GitHubValidationError);
-      expect(() => GitHubValidators.validateUsername('   ')).toThrow(GitHubValidationError);
+      expect(() => GitHubValidators.validateUsername('')).toThrow(
+        GitHubValidationError,
+      );
+      expect(() => GitHubValidators.validateUsername('   ')).toThrow(
+        GitHubValidationError,
+      );
     });
 
     it('should throw error for invalid characters', () => {
-      expect(() => GitHubValidators.validateUsername('test@user')).toThrow(GitHubValidationError);
-      expect(() => GitHubValidators.validateUsername('test user')).toThrow(GitHubValidationError);
+      expect(() => GitHubValidators.validateUsername('test@user')).toThrow(
+        GitHubValidationError,
+      );
+      expect(() => GitHubValidators.validateUsername('test user')).toThrow(
+        GitHubValidationError,
+      );
     });
 
     it('should throw error for username too long', () => {
       const longUsername = 'a'.repeat(40);
-      expect(() => GitHubValidators.validateUsername(longUsername)).toThrow(GitHubValidationError);
+      expect(() => GitHubValidators.validateUsername(longUsername)).toThrow(
+        GitHubValidationError,
+      );
     });
   });
 
@@ -47,12 +57,18 @@ describe('GitHubValidators', () => {
     });
 
     it('should throw error for empty repository name', () => {
-      expect(() => GitHubValidators.validateRepositoryName('')).toThrow(GitHubValidationError);
+      expect(() => GitHubValidators.validateRepositoryName('')).toThrow(
+        GitHubValidationError,
+      );
     });
 
     it('should throw error for invalid characters', () => {
-      expect(() => GitHubValidators.validateRepositoryName('test repo')).toThrow(GitHubValidationError);
-      expect(() => GitHubValidators.validateRepositoryName('test@repo')).toThrow(GitHubValidationError);
+      expect(() =>
+        GitHubValidators.validateRepositoryName('test repo'),
+      ).toThrow(GitHubValidationError);
+      expect(() =>
+        GitHubValidators.validateRepositoryName('test@repo'),
+      ).toThrow(GitHubValidationError);
     });
   });
 
@@ -63,12 +79,18 @@ describe('GitHubValidators', () => {
     });
 
     it('should throw error for negative values', () => {
-      expect(() => GitHubValidators.validateStarRange(-1, 100)).toThrow(GitHubValidationError);
-      expect(() => GitHubValidators.validateStarRange(10, -1)).toThrow(GitHubValidationError);
+      expect(() => GitHubValidators.validateStarRange(-1, 100)).toThrow(
+        GitHubValidationError,
+      );
+      expect(() => GitHubValidators.validateStarRange(10, -1)).toThrow(
+        GitHubValidationError,
+      );
     });
 
     it('should throw error when minStars > maxStars', () => {
-      expect(() => GitHubValidators.validateStarRange(100, 10)).toThrow(GitHubValidationError);
+      expect(() => GitHubValidators.validateStarRange(100, 10)).toThrow(
+        GitHubValidationError,
+      );
     });
   });
 });

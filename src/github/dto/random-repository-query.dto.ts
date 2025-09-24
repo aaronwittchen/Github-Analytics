@@ -1,6 +1,6 @@
-import { IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { IsOptional, IsNumber, Min, Max, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RandomRepositoryQueryDto {
   @ApiProperty({
@@ -30,4 +30,9 @@ export class RandomRepositoryQueryDto {
   @Min(0, { message: 'max_stars must be at least 0' })
   @Max(1000000, { message: 'max_stars must be at most 1,000,000' })
   max_stars?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by primary language', example: 'C' })
+  @IsOptional()
+  @IsString()
+  language?: string;
 }

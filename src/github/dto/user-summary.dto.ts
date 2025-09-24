@@ -136,7 +136,7 @@ export class UserSummaryDto {
   updatedAt: string;
 
   @ApiProperty({
-    description: 'Top 5 repositories by stars',
+    description: 'Top repositories by stars (count configurable, default 12)',
     type: [RepositoryDto],
   })
   @ValidateNested({ each: true })

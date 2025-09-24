@@ -131,9 +131,10 @@ export class GitHubCacheService {
   }
 
   // Enhanced key generation methods with validation
-  generateUserStatsKey(username: string): string {
+  generateUserStatsKey(username: string, maxRepos?: number): string {
     this.validateKey(username, 'username');
-    return `user_stats:${username}`;
+    const suffix = typeof maxRepos === 'number' && maxRepos > 0 ? `:max:${maxRepos}` : '';
+    return `user_stats:${username}${suffix}`;
   }
 
   generateUserRepositoriesKey(username: string): string {

@@ -54,7 +54,7 @@ describe('GitHubService', () => {
     }).compile();
 
     service = module.get<GitHubService>(GitHubService);
-    
+
     // Ensure the service uses our mocked dependencies
     (service as any).apiService = apiService;
     (service as any).cacheService = cacheService;
@@ -74,40 +74,54 @@ describe('GitHubService', () => {
 
       const result = await service.getUserStats('testuser');
 
-      expect(result).toEqual({ ...cachedData, cached: true, responseTime: expect.any(Number) });
+      expect(result).toEqual({
+        ...cachedData,
+        cached: true,
+        responseTime: expect.any(Number),
+      });
       expect(apiService.getUser).not.toHaveBeenCalled();
     });
 
     it('should fetch from API when not cached', async () => {
       const user = { login: 'testuser', name: 'Test User' };
-      const repos = [{ 
-        id: 1, 
-        name: 'repo1', 
-        full_name: 'testuser/repo1',
-        stargazers_count: 100,
-        language: 'TypeScript',
-        description: 'Test repo',
-        forks_count: 10,
-        open_issues_count: 2,
-        private: false,
-        html_url: 'https://github.com/testuser/repo1',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-        owner: { login: 'testuser', id: 1, avatar_url: '', name: null, email: null }
-      }];
-      const topRepos = [{ 
-        name: 'repo1', 
-        description: 'Test repo',
-        language: 'TypeScript',
-        stars: 100,
-        forks: 10,
-        openIssues: 2,
-        isPrivate: false,
-        createdAt: '2023-01-01T00:00:00Z',
-        updatedAt: '2023-01-01T00:00:00Z',
-        htmlUrl: 'https://github.com/testuser/repo1',
-        lastCommitDate: '2023-01-01T00:00:00Z'
-      }];
+      const repos = [
+        {
+          id: 1,
+          name: 'repo1',
+          full_name: 'testuser/repo1',
+          stargazers_count: 100,
+          language: 'TypeScript',
+          description: 'Test repo',
+          forks_count: 10,
+          open_issues_count: 2,
+          private: false,
+          html_url: 'https://github.com/testuser/repo1',
+          created_at: '2023-01-01T00:00:00Z',
+          updated_at: '2023-01-01T00:00:00Z',
+          owner: {
+            login: 'testuser',
+            id: 1,
+            avatar_url: '',
+            name: null,
+            email: null,
+          },
+        },
+      ];
+      const topRepos = [
+        {
+          name: 'repo1',
+          description: 'Test repo',
+          language: 'TypeScript',
+          stars: 100,
+          forks: 10,
+          openIssues: 2,
+          isPrivate: false,
+          createdAt: '2023-01-01T00:00:00Z',
+          updatedAt: '2023-01-01T00:00:00Z',
+          htmlUrl: 'https://github.com/testuser/repo1',
+          lastCommitDate: '2023-01-01T00:00:00Z',
+        },
+      ];
       const userStats = { username: 'testuser', topRepositories: topRepos };
 
       cacheService.get.mockResolvedValue(null);
@@ -121,13 +135,24 @@ describe('GitHubService', () => {
 
       const result = await service.getUserStats('testuser');
 
-      expect(result).toEqual({ ...userStats, cached: false, responseTime: expect.any(Number) });
-      expect(cacheService.set).toHaveBeenCalledWith('user_stats:testuser', userStats);
+      expect(result).toEqual({
+        ...userStats,
+        cached: false,
+        responseTime: expect.any(Number),
+      });
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'user_stats:testuser',
+        userStats,
+      );
     });
 
     it('should validate username input', async () => {
-      await expect(service.getUserStats('')).rejects.toThrow(GitHubValidationError);
-      await expect(service.getUserStats('   ')).rejects.toThrow(GitHubValidationError);
+      await expect(service.getUserStats('')).rejects.toThrow(
+        GitHubValidationError,
+      );
+      await expect(service.getUserStats('   ')).rejects.toThrow(
+        GitHubValidationError,
+      );
     });
   });
 
@@ -144,8 +169,12 @@ describe('GitHubService', () => {
     });
 
     it('should validate repository inputs', async () => {
-      await expect(service.getRepository('', 'repo')).rejects.toThrow(GitHubValidationError);
-      await expect(service.getRepository('owner', '')).rejects.toThrow(GitHubValidationError);
+      await expect(service.getRepository('', 'repo')).rejects.toThrow(
+        GitHubValidationError,
+      );
+      await expect(service.getRepository('owner', '')).rejects.toThrow(
+        GitHubValidationError,
+      );
     });
   });
 });

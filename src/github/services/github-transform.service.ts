@@ -103,6 +103,21 @@ export class GitHubTransformService {
     };
   }
 
+  attachLanguagePercentages(
+    repoDto: RepositoryDto,
+    languagesBytes?: Record<string, number> | null,
+  ): RepositoryDto {
+    if (!languagesBytes || Object.keys(languagesBytes).length === 0) {
+      return repoDto;
+    }
+    const totals = Object.values(languagesBytes).reduce((a, b) => a + (b || 0), 0);
+    if (totals <= 0) return repoDto;
+    const entries = Object.entries(languagesBytes)
+      .map(([name, bytes]) => ({ name, percentage: +(bytes / totals * 100).toFixed(1) }))
+      .sort((a, b) => b.percentage - a.percentage);
+    return { ...repoDto, languages: entries };
+  }
+
   transformToRepositoryDtoWithCommitData(
     repo: GitHubRepository,
     commitData: CommitData | null,

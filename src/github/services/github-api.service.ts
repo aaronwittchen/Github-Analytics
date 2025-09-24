@@ -59,6 +59,15 @@ export class GitHubApiService {
     }
   }
 
+  async getRepositoryLanguages(owner: string, repo: string): Promise<Record<string, number>> {
+    try {
+      const { data } = await this.octokit.rest.repos.listLanguages({ owner, repo });
+      return data as Record<string, number>;
+    } catch (error: any) {
+      this.handleApiError(error, `getRepositoryLanguages for ${owner}/${repo}`);
+    }
+  }
+
   async getAllUserRepositories(username: string): Promise<GitHubRepository[]> {
     const allRepos: GitHubRepository[] = [];
     let page = 1;
